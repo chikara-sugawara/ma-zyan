@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>雀王オッズ ｜ AI麻雀 × 順位予想</title>
+<style>
+/* ============================================================
+   配色（テーマ：雀荘の緑卓 × 競馬場のオッズボード）
+   ============================================================ */
+:root{
+  --felt:#0c5d3b;        /* 麻雀卓の緑 */
+  --felt-dark:#073d28;
+  --wood:#2a1c10;        /* 卓のフチの木目 */
+  --ivory:#f4ead0;       /* 牌の色 */
+  --ivory-edge:#d8c79b;
+  --gold:#d8b13a;        /* オッズ・賭けのアクセント */
+  --gold-soft:#f0d98a;
+  --ink:#1c1208;
+  --paper:#fbf6e9;
+  --red:#c2362b;
+  --blue:#2b5fa6;
+  --green2:#2f7d4f;
+  --shadow:rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;height:100%;}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",YuGothic,Meiryo,sans-serif;
+  background:
+    radial-gradient(ellipse at top,#0f6e46 0%,var(--felt) 45%,var(--felt-dark) 100%);
+  color:var(--paper);
+  overflow:hidden;
+  user-select:none;
+}
+.app{height:100%;width:100%;position:relative;overflow:hidden;}
+
+/* 画面（セクション）切り替え */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;overflow:auto;padding:14px;}
+.screen.active{display:flex;animation:fade .3s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;}}
+
+/* 共通パーツ */
+.brand{font-weight:900;letter-spacing:.12em;}
+.btn{
+  font:inherit;font-weight:800;cursor:pointer;border:none;border-radius:12px;
+  padding:14px 18px;color:var(--ink);
+  background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+  box-shadow:0 4px 0 #9a7b1f,0 6px 12px var(--shadow);
+  transition:transform .05s;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #9a7b1f;}
+.btn.sub{background:linear-gradient(180deg,#fff,#e6ddc6);box-shadow:0 4px 0 #b3a884,0 6px 12px var(--shadow);}
+.btn.ghost{background:transparent;color:var(--paper);border:2px solid rgba(255,255,255,.4);box-shadow:none;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.card{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:16px;}
+.title-xl{font-size:clamp(28px,7vw,48px);font-weight:900;letter-spacing:.08em;
+  text-shadow:0 2px 0 #063,0 4px 10px rgba(0,0,0,.4);}
+.gold{color:var(--gold-soft);}
+.muted{opacity:.75;}
+
+/* ===== ログイン画面 ===== */
+#login{align-items:center;justify-content:center;text-align:center;gap:18px;}
+.logo-mark{font-size:64px;line-height:1;}
+.coin-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(0,0,0,.3);
+  border:1px solid var(--gold);border-radius:999px;padding:8px 16px;font-weight:800;}
+
+/* ===== ホーム画面 ===== */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+.wallet{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.3);
+  border:1px solid var(--gold);border-radius:12px;padding:8px 14px;font-weight:900;}
+.wallet .amt{color:var(--gold-soft);font-variant-numeric:tabular-nums;}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.menu-grid .btn{padding:22px 14px;font-size:17px;}
+@media(min-width:680px){.menu-grid{grid-template-columns:repeat(4,1fr);}}
+
+/* ===== オッズ／賭け画面（看板＝この作品の“顔”） ===== */
+.tote{
+  background:linear-gradient(180deg,#10120e,#1c1f17);
+  border:3px solid var(--gold);border-radius:14px;padding:14px;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.6),0 8px 20px var(--shadow);
+}
+.tote h3{margin:0 0 10px;color:var(--gold-soft);letter-spacing:.2em;font-size:14px;}
+.odds-row{display:grid;grid-template-columns:1fr auto;gap:10px;}
+.odds-pick{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:#0b0d09;border:2px solid #333;border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;
+  transition:border-color .15s,background .15s;
+}
+.odds-pick:active{transform:scale(.99);}
+.odds-pick.selected{border-color:var(--gold);background:#1a1d12;box-shadow:0 0 0 2px var(--gold) inset;}
+.odds-pick .rank{font-weight:900;font-size:18px;color:var(--paper);}
+.odds-pick .odd{font-family:"DS-Digital","Courier New",monospace;font-weight:900;font-size:26px;
+  color:#ffd23f;text-shadow:0 0 8px rgba(255,210,63,.5);font-variant-numeric:tabular-nums;}
+.form-badge{font-size:12px;padding:2px 8px;border-radius:6px;font-weight:800;}
+.bet-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;}
+.chip{padding:10px 14px;border-radius:10px;border:2px solid var(--gold);background:rgba(216,177,58,.12);
+  color:var(--gold-soft);font-weight:800;cursor:pointer;}
+.chip:active{transform:scale(.96);}
+.bet-amount{font-size:28px;font-weight:900;color:var(--gold-soft);font-variant-numeric:tabular-nums;}
+
+/* ===== 麻雀卓 ===== */
+#game{padding:0;background:#1a0f06;}
+.table{position:relative;height:100%;width:100%;display:flex;flex-direction:column;}
+.hud{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;
+  background:#160d05;font-size:13px;font-weight:800;border-bottom:2px solid #3a2614;}
+.hud .seat-mini{display:flex;gap:8px;flex-wrap:wrap;}
+.seat-mini .s{padding:3px 8px;border-radius:8px;background:rgba(0,0,0,.35);}
+.seat-mini .s.turn{background:var(--gold);color:var(--ink);}
+/* 雀卓：外周の木枠＋中央の緑フェルト */
+.felt-area{flex:1;position:relative;margin:8px;border-radius:18px;
+  background:
+    repeating-linear-gradient(90deg,#3a2614 0 6px,#2e1d0f 6px 12px);
+  padding:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);}
+.felt{position:absolute;inset:14px;border-radius:12px;
+  background:radial-gradient(ellipse at center,#138a5e 0%,#0e6b48 45%,#0a4f35 100%);
+  box-shadow:inset 0 0 40px rgba(0,0,0,.45),inset 0 0 0 2px rgba(255,255,255,.06);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;}
+
+/* 中央の場風・自風マーカー（自動卓の中央表示風） */
+.wind-marker{position:relative;width:84px;height:84px;border-radius:10px;
+  background:linear-gradient(145deg,#0a3d28,#072a1c);border:2px solid rgba(216,177,58,.5);
+  box-shadow:inset 0 0 18px rgba(0,0,0,.5);}
+.wind-marker .ctr{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.wind-marker .ctr .ba{font-size:15px;font-weight:900;color:var(--gold-soft);line-height:1.05;}
+.wind-marker .ctr .sub{font-size:8px;opacity:.75;}
+.wind-marker .w{position:absolute;font-size:13px;font-weight:900;color:#e8e3d2;
+  font-family:'Yu Mincho','Hiragino Mincho ProN',serif;}
+.wind-marker .w.me{color:#ffd23f;text-shadow:0 0 8px rgba(255,210,63,.6);}
+.wind-marker .w.bottom{bottom:5px;left:50%;transform:translateX(-50%);}
+.wind-marker .w.top{top:5px;left:50%;transform:translateX(-50%);}
+.wind-marker .w.left{left:7px;top:50%;transform:translateY(-50%);}
+.wind-marker .w.right{right:7px;top:50%;transform:translateY(-50%);}
+.wind-marker .dealer-dot{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--red);}
+/* リーチ棒（点棒）：白い棒に赤い点 */
+.rstick{position:absolute;display:none;border-radius:3px;
+  background:linear-gradient(180deg,#fff,#e9e9e9);box-shadow:0 1px 2px rgba(0,0,0,.5);}
+.rstick.show{display:block;}
+.rstick::after{content:'';position:absolute;width:5px;height:5px;border-radius:50%;background:var(--red);
+  top:50%;left:50%;transform:translate(-50%,-50%);}
+.rstick.bottom,.rstick.top{width:42px;height:7px;left:50%;margin-left:-21px;}
+.rstick.bottom{bottom:22px;} .rstick.top{top:22px;}
+.rstick.left,.rstick.right{width:7px;height:42px;top:50%;margin-top:-21px;}
+.rstick.left::after,.rstick.right::after{width:5px;height:5px;}
+.rstick.left{left:22px;} .rstick.right{right:22px;}
+
+/* 山（牌の壁）＝中央マーカーのすぐ外側の細い輪 */
+.wall{position:absolute;display:flex;gap:1.5px;}
+.wall.top{top:50%;left:50%;transform:translate(-50%,-52px);}
+.wall.bottom{top:50%;left:50%;transform:translate(-50%,52px);}
+.wall.left{top:50%;left:50%;transform:translate(-56px,-50%);flex-direction:column;}
+.wall.right{top:50%;left:50%;transform:translate(47px,-50%);flex-direction:column;}
+.wall .tile.wallt{width:15px;height:9px;border-radius:2.5px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 1px 1px rgba(0,0,0,.4);}
+.wall.left .tile.wallt,.wall.right .tile.wallt{width:9px;height:15px;}
+
+/* ドラ表示（左上の角） */
+.dora-corner{position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:5px;
+  background:rgba(0,0,0,.5);border:1px solid var(--gold);border-radius:9px;padding:4px 8px;z-index:4;}
+.dora-corner .lbl{font-size:10px;color:var(--gold-soft);font-weight:800;}
+
+.round-badge{font-size:22px;font-weight:900;color:var(--gold-soft);}
+/* 河（捨て牌）＝極小・枚数制限。山とAI手牌の間の帯に置く */
+.discards{position:absolute;display:flex;flex-wrap:wrap;gap:1.5px;z-index:2;}
+.discards .tile.disc{width:16px;height:22px;border-radius:3px;}
+.discards.left .tile.disc,.discards.right .tile.disc{width:16px;height:22px;}
+.discards.top{top:24px;left:50%;transform:translateX(-50%);justify-content:center;max-width:30%;max-height:24px;overflow:hidden;}
+.discards.bottom{bottom:8px;left:50%;transform:translateX(-50%);justify-content:center;max-width:30%;max-height:48px;overflow:hidden;}
+.discards.left{left:84px;top:50%;transform:translateY(-50%);flex-direction:column;align-items:flex-start;max-height:78%;overflow:hidden;}
+.discards.right{right:84px;top:50%;transform:translateY(-50%);flex-direction:column;align-items:flex-end;max-height:78%;overflow:hidden;}
+
+/* 持ち時間タイマー（右下） */
+#turn-timer{position:absolute;right:14px;bottom:104px;z-index:20;display:none;
+  align-items:baseline;gap:2px;justify-content:center;
+  width:60px;height:60px;border-radius:50%;
+  background:radial-gradient(circle at 50% 40%,#0f6e46,#073d28);
+  border:3px solid #2f8a4f;color:#fff;font-weight:900;
+  box-shadow:0 4px 12px rgba(0,0,0,.5);}
+#turn-timer #timer-num{font-size:26px;font-variant-numeric:tabular-nums;}
+#turn-timer .unit{font-size:11px;opacity:.8;}
+#turn-timer.warn{border-color:var(--red);background:radial-gradient(circle at 50% 40%,#c2362b,#6e1812);
+  animation:pulse .6s ease-in-out infinite;}
+@keyframes pulse{50%{transform:scale(1.08);}}
+
+/* 各家の手牌（伏せ牌）＝枚数が見える。位置は卓の外周 */
+.ai-hand{position:absolute;display:flex;gap:1px;align-items:center;}
+.ai-hand .count{font-size:11px;font-weight:800;color:var(--gold-soft);
+  background:rgba(0,0,0,.45);border-radius:6px;padding:1px 5px;white-space:nowrap;}
+.ai-hand.top{top:4px;left:50%;transform:translateX(-50%);flex-direction:row;}
+.ai-hand.left{left:3px;top:50%;transform:translateY(-50%);flex-direction:column;}
+.ai-hand.right{right:3px;top:50%;transform:translateY(-50%);flex-direction:column;}
+.ai-hand.top .count{margin-left:6px;}
+.ai-hand.left .count,.ai-hand.right .count{margin-top:4px;}
+.ai-hand .tile.tiny{width:11px;height:15px;border-radius:2.5px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 1px 1px rgba(0,0,0,.4);}
+.ai-hand.left .tile.tiny,.ai-hand.right .tile.tiny{width:15px;height:11px;}
+.ai-hand .tile.tiny.melded{box-shadow:inset 0 0 0 1.5px var(--gold),0 1px 1px rgba(0,0,0,.4);overflow:hidden;}
+.ai-hand .tile.tiny.melded svg{width:100%;height:100%;}
+
+/* 牌（実物の麻雀牌に寄せたデザイン：白い面＋骨色の胴＋立体感） */
+.tile{
+  width:40px;height:56px;border-radius:7px;
+  background:linear-gradient(180deg,#fffdf7 0%,#fbf6ea 70%,#efe6cf 100%);
+  border:1px solid #cdbf9a;
+  box-shadow:
+    inset 0 2px 2px rgba(255,255,255,.9),
+    inset 0 -5px 4px rgba(176,158,110,.55),
+    inset -3px 0 4px rgba(176,158,110,.35),
+    0 2px 3px rgba(0,0,0,.35);
+  display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;overflow:hidden;
+}
+.tile svg{width:100%;height:100%;display:block;}
+.tile.melded{box-shadow:inset 0 0 0 2px var(--gold),0 1px 2px rgba(0,0,0,.4);}
+.tile.small{width:23px;height:32px;border-radius:4px;box-shadow:inset 0 1px 1px rgba(255,255,255,.8),inset 0 -3px 3px rgba(176,158,110,.5),0 1px 2px rgba(0,0,0,.3);}
+/* 裏向き（伏せ牌）：緑の背 */
+.tile.back{background:linear-gradient(160deg,#1f8a5b,#0c5d3b 70%,#073d28);border-color:#063;}
+.tile.back svg{display:none;}
+
+/* 自分の手牌 */
+.myhand{padding:8px 6px 12px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.4));}
+.hand-row{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;}
+.hand-row .tile{cursor:pointer;transition:transform .1s;}
+.hand-row .tile:active{transform:translateY(-6px);}
+.hand-row .tile.drawn{margin-left:14px;box-shadow:0 0 0 2px var(--gold),0 2px 3px rgba(0,0,0,.3);}
+.action-bar{display:flex;gap:8px;justify-content:center;padding:8px;flex-wrap:wrap;}
+.action-bar .btn{padding:10px 16px;}
+
+/* メッセージ・モーダル */
+.toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(0,0,0,.85);border:2px solid var(--gold);border-radius:16px;
+  padding:20px 28px;font-size:20px;font-weight:900;text-align:center;z-index:50;
+  box-shadow:0 10px 40px rgba(0,0,0,.6);display:none;}
+.toast.show{display:block;animation:pop .3s;}
+@keyframes pop{from{transform:translate(-50%,-50%) scale(.8);opacity:0;}}
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:none;
+  align-items:center;justify-content:center;z-index:60;padding:16px;}
+.overlay.show{display:flex;}
+.modal{background:linear-gradient(180deg,#15331f,#0b2014);border:2px solid var(--gold);
+  border-radius:18px;padding:22px;max-width:520px;width:100%;text-align:center;max-height:90%;overflow:auto;}
+
+/* 役表 */
+.yaku-list{display:grid;gap:8px;}
+.yaku-item{display:grid;grid-template-columns:1fr auto;gap:6px;background:rgba(0,0,0,.25);
+  border-radius:10px;padding:10px 12px;align-items:center;}
+.yaku-item .han{background:var(--gold);color:var(--ink);font-weight:900;border-radius:8px;
+  padding:4px 10px;white-space:nowrap;}
+.yaku-item .desc{font-size:12px;opacity:.75;margin-top:2px;}
+
+/* スクロール見出し */
+.section-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.section-head h2{margin:0;font-size:22px;font-weight:900;letter-spacing:.06em;}
+
+/* ===== スマホ縦向きのときの「横にしてね」案内（横向き必須対応）===== */
+#rotate-hint{position:fixed;inset:0;background:#06281a;z-index:999;
+  display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;padding:24px;}
+.rot-phone{font-size:72px;animation:rotate 2s ease-in-out infinite;}
+@keyframes rotate{0%,40%{transform:rotate(0);}60%,100%{transform:rotate(90deg);}}
+@media (max-width:900px) and (orientation:portrait){
+  #rotate-hint{display:flex;}
+}
+</style>
+</head>
+<body>
+
+<!-- 横向き必須の案内（スマホを縦に持つと表示） -->
+<div id="rotate-hint">
+  <div class="rot-phone">📱</div>
+  <div class="title-xl">横向きにしてね</div>
+  <p class="muted">この麻雀は横画面でプレイします。<br>スマホを横向きにしてください。</p>
+</div>
+
+<div class="app">
+
+  <!-- ① ログイン -->
+  <section id="login" class="screen active">
+    <div class="logo-mark">🀄</div>
+    <div class="title-xl brand">雀王オッズ</div>
+    <p class="gold" style="margin-top:-6px;letter-spacing:.2em;font-weight:800;">AI麻雀 × 順位予想</p>
+    <p class="muted" style="max-width:420px;">CPUと打つ麻雀で順位を競い、レース感覚で「自分の順位」に賭けられる練習アプリです。使うのはアプリ内ポイントだけ（現金は一切なし）。</p>
+    <div class="coin-pill">🎁 ログインボーナス 50,000 pt</div>
+    <button class="btn" style="font-size:18px;padding:16px 40px;" onclick="login()">はじめる</button>
+  </section>
+
+  <!-- ② ホーム -->
+  <section id="home" class="screen">
+    <div class="topbar">
+      <div class="brand" style="font-size:20px;">🀄 雀王オッズ</div>
+      <div class="wallet">💰 <span class="amt" id="home-wallet">0</span> pt</div>
+    </div>
+    <div class="card" style="margin-bottom:14px;">
+      <p style="margin:0 0 4px;font-weight:800;">ようこそ！今日も一局どうぞ。</p>
+      <p class="muted" style="margin:0;font-size:13px;">「対局する」を押すと、まず順位予想（賭け）を行い、そのあとAI3人と東風戦（4局）を打ちます。</p>
+    </div>
+    <div class="menu-grid">
+      <button class="btn" onclick="goToBet()">🀙 自分で打つ</button>
+      <button class="btn" onclick="goToWatch()">🤖 AI観戦で予想</button>
+      <button class="btn sub" onclick="show('yaku')">📖 役表を見る</button>
+      <button class="btn sub" onclick="show('rules')">❓ 遊び方</button>
+      <button class="btn ghost" onclick="resetWallet()">↺ ポイント初期化</button>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="muted" style="font-size:12px;">直近の成績</div>
+      <div id="history" style="font-size:13px;margin-top:6px;">まだ対局していません。</div>
+    </div>
+  </section>
+
+  <!-- ③ 賭け（オッズ）画面 -->
+  <section id="bet" class="screen">
+    <div class="topbar">
+      <button class="btn ghost" style="padding:8px 14px;" onclick="show('home')">‹ 戻る</button>
+      <div class="wallet">💰 <span class="amt" id="bet-wallet">0</span> pt</div>
+    </div>
+    <div class="section-head"><h2 id="bet-title">🏇 順位予想</h2></div>
+    <p class="muted" id="bet-desc" style="margin-top:-6px;font-size:13px;">この対局であなたが<b>何位</b>になるか予想して賭けます。当たればオッズ倍のポイントが戻ります。</p>
+
+    <div class="card" id="bet-form-card" style="margin:8px 0;">
+      <div class="muted" style="font-size:12px;" id="bet-form-label">あなたの本日の調子（オッズに反映されます）</div>
+      <div id="form-display" style="font-size:18px;font-weight:900;margin-top:4px;">―</div>
+    </div>
+
+    <div class="tote">
+      <h3>◆ ODDS BOARD ◆</h3>
+      <div id="odds-board"><!-- JSで生成 --></div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="muted" style="font-size:12px;">賭けるポイント</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="bet-amount"><span id="bet-amount">1000</span> pt</div>
+        <div style="text-align:right;font-size:13px;" class="muted">的中なら +<span id="payout-preview" class="gold" style="font-weight:900;">―</span> pt</div>
+      </div>
+      <div class="bet-controls">
+        <button class="chip" onclick="addBet(1000)">+1,000</button>
+        <button class="chip" onclick="addBet(5000)">+5,000</button>
+        <button class="chip" onclick="addBet(10000)">+10,000</button>
+        <button class="chip" onclick="setBet(0)">クリア</button>
+      </div>
+    </div>
+
+    <button class="btn" id="start-game-btn" style="margin-top:14px;font-size:18px;" onclick="startGame()" disabled>順位を選んでください</button>
+  </section>
+
+  <!-- ④ 麻雀卓 -->
+  <section id="game" class="screen">
+    <div class="table">
+      <div class="hud">
+        <button class="btn ghost" style="padding:6px 10px;font-size:12px;" onclick="quitGame()">中断</button>
+        <div class="round-badge" id="round-badge" style="font-size:16px;">東1局</div>
+        <div class="seat-mini" id="seat-scores"></div>
+      </div>
+      <div class="felt-area">
+        <div class="felt">
+          <!-- 山（牌の壁）四方 -->
+          <div class="wall top" id="wall-top"></div>
+          <div class="wall bottom" id="wall-bottom"></div>
+          <div class="wall left" id="wall-left"></div>
+          <div class="wall right" id="wall-right"></div>
+          <!-- ドラ表示（左上） -->
+          <div class="dora-corner">
+            <span class="lbl">ドラ</span><span id="dora-tile"></span>
+          </div>
+          <!-- 中央：場風・自風マーカー -->
+          <div class="wind-marker" id="wind-marker">
+            <div class="ctr">
+              <div class="ba" id="ba-wind">東場</div>
+              <div class="sub" id="ba-sub">残り山 0枚</div>
+              <div class="sub gold" id="riichi-sticks"></div>
+            </div>
+            <div class="w bottom" id="wind-0">東</div>
+            <div class="w right" id="wind-1">南</div>
+            <div class="w top" id="wind-2">西</div>
+            <div class="w left" id="wind-3">北</div>
+            <!-- リーチ棒（各席の自風の内側に表示） -->
+            <div class="rstick bottom" id="rstick-0"></div>
+            <div class="rstick right" id="rstick-1"></div>
+            <div class="rstick top" id="rstick-2"></div>
+            <div class="rstick left" id="rstick-3"></div>
+          </div>
+          <!-- 各家の手牌（伏せ牌＝枚数） -->
+          <div class="ai-hand top" id="aihand-2"></div>
+          <div class="ai-hand left" id="aihand-3"></div>
+          <div class="ai-hand right" id="aihand-1"></div>
+          <!-- 河（捨て牌） -->
+          <div class="discards top" id="discard-2"></div>
+          <div class="discards left" id="discard-3"></div>
+          <div class="discards right" id="discard-1"></div>
+          <div class="discards bottom" id="discard-0"></div>
+          <div class="toast" id="toast"></div>
+        </div>
+      </div>
+      <div class="myhand">
+        <div class="action-bar" id="action-bar"></div>
+        <div class="hand-row" id="my-hand"></div>
+      </div>
+      <!-- 持ち時間（右下） -->
+      <div id="turn-timer"><span id="timer-num">30</span><span class="unit">秒</span></div>
+    </div>
+    <!-- 局/対局の結果モーダル -->
+    <div class="overlay" id="hand-result">
+      <div class="modal" id="hand-result-body"></div>
+    </div>
+  </section>
+
+  <!-- ⑤ 役表 -->
+  <section id="yaku" class="screen">
+    <div class="topbar">
+      <button class="btn ghost" style="padding:8px 14px;" onclick="show('home')">‹ 戻る</button>
+    </div>
+    <div class="section-head"><h2>📖 役表（よく出る役）</h2></div>
+    <div class="yaku-list" id="yaku-list"></div>
+    <p class="muted" style="font-size:12px;margin-top:12px;">※ このアプリでは点数計算を簡略化しています（符計算は省略）。役の雰囲気をつかむ練習用としてお使いください。</p>
+  </section>
+
+  <!-- ⑥ 遊び方 -->
+  <section id="rules" class="screen">
+    <div class="topbar">
+      <button class="btn ghost" style="padding:8px 14px;" onclick="show('home')">‹ 戻る</button>
+    </div>
+    <div class="section-head"><h2>❓ 遊び方</h2></div>
+    <div class="card" style="display:grid;gap:14px;font-size:14px;line-height:1.7;">
+      <div><b class="gold">① 賭ける</b><br>「対局する」を押すと順位予想画面へ。自分が何位になるか選び、ポイントを賭けます（オッズ＝倍率）。</div>
+      <div><b class="gold">② 麻雀を打つ</b><br>自分の番が来たら牌を1枚ツモ（自動）。いらない牌を<b>タップして捨てます</b>。これを繰り返し、4面子＋雀頭（メンツ4組＋同じ牌2枚）を作ればあがり。</div>
+      <div><b class="gold">③ あがり方</b><br>・自分でツモってあがり完成 → <b>ツモ</b><br>・誰かの捨て牌で完成 → <b>ロン</b>（あがれるとき「ロン！」ボタンが出ます）</div>
+      <div><b class="gold">④ 順位と精算</b><br>4局（東風戦）終了後の持ち点で順位決定。順位ボーナス＋賭けの的中分がポイントに反映されます。</div>
+      <div class="muted" style="font-size:12px;">※ 現金のやり取りは一切ありません。賭けはアプリ内ポイントのみ・換金不可です。</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ============================================================================
+   雀王オッズ — ロジック
+   牌の表現: 0-8=萬子1-9 / 9-17=筒子1-9 / 18-26=索子1-9 / 27-33=字牌
+   字牌の並び: 27東 28南 29西 30北 31白 32發 33中
+   ============================================================================ */
+
+// ---- セーブデータ（ウォレットのポイント）。localStorageが使えない環境でも落ちないようtry-catch ----
+let wallet = 50000;
+let loggedIn = false;
+let history = [];
+function save(){ try{ localStorage.setItem('janou', JSON.stringify({wallet,loggedIn,history})); }catch(e){} }
+function load(){ try{ const d=JSON.parse(localStorage.getItem('janou')); if(d){wallet=d.wallet??50000;loggedIn=d.loggedIn??false;history=d.history??[];} }catch(e){} }
+load();
+
+// ---- 画面切り替え ----
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='home'){ document.getElementById('home-wallet').textContent=fmt(wallet); renderHistory(); }
+  if(id==='bet'){ document.getElementById('bet-wallet').textContent=fmt(wallet); }
+}
+function fmt(n){ return n.toLocaleString('ja-JP'); }
+
+function login(){ loggedIn=true; save(); show('home'); }
+function resetWallet(){ if(confirm('ポイントを50,000に戻しますか？')){ wallet=50000; history=[]; save(); show('home'); } }
+function renderHistory(){
+  const el=document.getElementById('history');
+  if(!history.length){ el.textContent='まだ対局していません。'; return; }
+  el.innerHTML = history.slice(-5).reverse().map(h=>{
+    if(h.watch) return `<div>🤖 ${h.label}｜予想 ${h.betResult}</div>`;
+    return `<div>${h.rank}位｜順位報酬 +${fmt(h.bonus)}｜予想 ${h.betResult}</div>`;
+  }).join('');
+}
+
+/* ============================ 牌のユーティリティ ============================ */
+const HONOR=['東','南','西','北','白','發','中'];
+const WIND_KANJI=['東','南','西','北'];
+function tileName(t){ if(t>=27)return HONOR[t-27]; const s=['萬','筒','索'][Math.floor(t/9)]; return (t%9+1)+s; }
+const KANJI_NUM=['','一','二','三','四','五','六','七','八','九'];
+function tileInfo(t){
+  if(t<27){ return {num:(t%9)+1, suitIdx:Math.floor(t/9)}; }
+  return {honor:t-27};
+}
+
+/* ---- 牌の「顔」をSVGで描く（viewBox 0 0 60 84）---- */
+// 筒子の丸の配置（1〜9）。各要素は[x,y]
+const PIN_LAYOUT={
+  1:[[30,42]],
+  2:[[30,24],[30,60]],
+  3:[[16,20],[30,42],[44,64]],
+  4:[[20,24],[40,24],[20,60],[40,60]],
+  5:[[20,22],[40,22],[30,42],[20,62],[40,62]],
+  6:[[20,20],[40,20],[20,42],[40,42],[20,64],[40,64]],
+  7:[[16,18],[30,24],[44,30],[20,52],[40,52],[20,68],[40,68]],
+  8:[[20,16],[40,16],[20,34],[40,34],[20,52],[40,52],[20,70],[40,70]],
+  9:[[16,18],[30,18],[44,18],[16,42],[30,42],[44,42],[16,66],[30,66],[44,66]]
+};
+function drawPin(num){
+  let s='';
+  for(const [x,y] of PIN_LAYOUT[num]){
+    s+=`<circle cx="${x}" cy="${y}" r="9.2" fill="#1f6fb2" stroke="#0c3f6e" stroke-width="1.4"/>`
+      +`<circle cx="${x}" cy="${y}" r="4.6" fill="#f4f1e6"/>`
+      +`<circle cx="${x}" cy="${y}" r="2.1" fill="#c2362b"/>`;
+  }
+  return s;
+}
+// 索子の竹1本（red=赤竹, angle=傾き）
+function bamboo(x,y,red,angle){
+  const fill=red?'#c2362b':'#2f8a4f', dark=red?'#7d1d17':'#1c5e33';
+  const rot=angle?`transform="rotate(${angle} ${x} ${y})"`:'';
+  return `<g ${rot}><rect x="${x-3.1}" y="${y-12}" width="6.2" height="24" rx="3.1" fill="${fill}" stroke="${dark}" stroke-width="1"/>`
+    +`<line x1="${x-3.1}" y1="${y-2}" x2="${x+3.1}" y2="${y-2}" stroke="${dark}" stroke-width="1"/>`
+    +`<line x1="${x-3.1}" y1="${y+5}" x2="${x+3.1}" y2="${y+5}" stroke="${dark}" stroke-width="1"/></g>`;
+}
+function drawSou(num){
+  if(num===1){ // 一索は鳥
+    return `<ellipse cx="30" cy="48" rx="12" ry="15" fill="#2f8a4f" stroke="#1c5e33" stroke-width="1.4"/>`
+      +`<circle cx="30" cy="28" r="7.5" fill="#c2362b" stroke="#7d1d17" stroke-width="1.2"/>`
+      +`<path d="M30 20 L35 11 L30 16 L25 11 Z" fill="#d8b13a"/>`
+      +`<path d="M21 52 q-9 4 -12 13 q11 -3 15 -7" fill="#2f8a4f" stroke="#1c5e33" stroke-width="1"/>`
+      +`<circle cx="33" cy="27" r="1.5" fill="#fff"/>`;
+  }
+  if(num===8){ // 8索は扇状（4索と区別）
+    const top=[[16,30,-16],[27,28,-6],[36,28,6],[47,30,16]];
+    const bot=[[16,58,16],[27,60,6],[36,60,-6],[47,58,-16]];
+    let s=''; for(const[x,y,a]of top)s+=bamboo(x,y,false,a); for(const[x,y,a]of bot)s+=bamboo(x,y,false,a); return s;
+  }
+  // 緑竹と赤竹の配置（公式準拠：5中央/7上/9中央列が赤）
+  let g=[],r=[];
+  if(num===2) g=[[30,26],[30,58]];
+  else if(num===3) g=[[30,22],[20,56],[40,56]];
+  else if(num===4) g=[[20,26],[40,26],[20,58],[40,58]];
+  else if(num===5){ g=[[18,24],[42,24],[18,60],[42,60]]; r=[[30,42]]; }
+  else if(num===6) g=[[20,22],[40,22],[20,42],[40,42],[20,62],[40,62]];
+  else if(num===7){ r=[[30,16]]; g=[[20,38],[40,38],[20,55],[40,55],[20,72],[40,72]]; }
+  else if(num===9){ g=[[14,22],[46,22],[14,42],[46,42],[14,62],[46,62]]; r=[[30,22],[30,42],[30,62]]; }
+  let s=''; for(const[x,y]of g)s+=bamboo(x,y,false); for(const[x,y]of r)s+=bamboo(x,y,true); return s;
+}
+function drawMan(num){
+  // 上に漢数字（黒）、下に「萬」（赤）
+  return `<text x="30" y="38" text-anchor="middle" font-size="34" font-family="'Yu Mincho','Hiragino Mincho ProN',serif" font-weight="700" fill="#1a1a1a">${KANJI_NUM[num]}</text>
+    <text x="30" y="74" text-anchor="middle" font-size="26" font-family="'Yu Mincho','Hiragino Mincho ProN',serif" font-weight="700" fill="#c2362b">萬</text>`;
+}
+function drawHonor(h){
+  // 0東1南2西3北4白5發6中
+  if(h===4){ // 白：青い枠
+    return `<rect x="14" y="14" width="32" height="56" rx="4" fill="none" stroke="#2b5fa6" stroke-width="3"/>`;
+  }
+  const ch=HONOR[h];
+  const color = (h===6)?'#c2362b' : (h===5)?'#2f8a4f' : '#1a1a1a'; // 中=赤 發=緑 風=黒
+  return `<text x="30" y="58" text-anchor="middle" font-size="44" font-family="'Yu Mincho','Hiragino Mincho ProN',serif" font-weight="700" fill="${color}">${ch}</text>`;
+}
+function tileFaceSVG(t){
+  const info=tileInfo(t); let inner='';
+  if(info.honor!==undefined) inner=drawHonor(info.honor);
+  else if(info.suitIdx===0) inner=drawMan(info.num);
+  else if(info.suitIdx===1) inner=drawPin(info.num);
+  else inner=drawSou(info.num);
+  return `<svg viewBox="0 0 60 84" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+}
+// 牌のHTML要素を作る
+function tileEl(t, opts={}){
+  const d=document.createElement('div');
+  d.className='tile';
+  if(opts.small) d.classList.add('small');
+  if(opts.tiny) d.classList.add('tiny');
+  if(opts.back){ d.classList.add('back'); return d; }
+  d.innerHTML=tileFaceSVG(t);
+  return d;
+}
+
+/* ============================ あがり判定（検証済み）============================ */
+function counts34(tiles){ const c=new Array(34).fill(0); for(const t of tiles)c[t]++; return c; }
+function canWin(tiles){ // 14枚で4面子1雀頭が作れるか
+  const c=counts34(tiles);
+  for(let p=0;p<34;p++){
+    if(c[p]>=2){ c[p]-=2; if(formMelds(c.slice())){c[p]+=2;return true;} c[p]+=2; }
+  }
+  return false;
+}
+function formMelds(c){
+  let i=0; while(i<34&&c[i]===0)i++;
+  if(i===34)return true;
+  if(c[i]>=3){ c[i]-=3; if(formMelds(c))return true; c[i]+=3; }
+  const num=i%9;
+  if(i<27&&num<=6&&c[i+1]>=1&&c[i+2]>=1){
+    c[i]--;c[i+1]--;c[i+2]--; if(formMelds(c))return true; c[i]++;c[i+1]++;c[i+2]++;
+  }
+  return false;
+}
+
+// テンパイ判定（13枚に1枚足してあがれる牌が1種でもあるか）
+function isTenpai(hand13){ for(let t=0;t<34;t++){ if(canWin([...hand13,t])) return true; } return false; }
+// ===== 鳴き対応の各種判定 =====
+function winHand(p){ return canWinMelds(G.hands[p], G.melds[p]); }
+function tenpaiMelds(concealed, melds){ for(let t=0;t<34;t++){ if(canWinMelds([...concealed,t], melds)) return true; } return false; }
+function isMenzen(p){ return G.melds[p].every(m=>m.type==='ankan'); } // 暗槓のみなら門前
+function mustDiscard(p){ return G.hands[p].length % 3 === 2; }        // 打牌が必要な状態か
+// ドラ表示牌 → 実際のドラ
+function doraFromIndicator(ind){
+  if(ind<27){ const suit=Math.floor(ind/9),num=ind%9; return suit*9+(num+1)%9; } // 数牌 9→1
+  if(ind<31){ return 27+(ind-27+1)%4; } // 風牌 東南西北→次へ
+  return 31+(ind-31+1)%3;               // 三元牌 白發中→次へ
+}
+
+/* ============================ 役の判定（簡略版）============================ */
+// 戻り値: {han, names:[...]}  / opts: {isTsumo, isRiichi, doraTile, roundWind, seatWind}
+function detectYaku(tiles14, opts={}){
+  const {isTsumo=false, isRiichi=false, doraTile=null, roundWind=null, seatWind=null}=opts;
+  const c=counts34(tiles14);
+  const names=[]; let han=0;
+  // リーチ
+  if(isRiichi){ names.push('立直'); han+=1; }
+  // メンゼンツモ
+  if(isTsumo){ names.push('門前清自摸和'); han+=1; }
+  // タンヤオ（1・9・字牌を使っていない）
+  let tanyao=true;
+  for(let t=0;t<34;t++){ if(c[t]>0){ if(t>=27){tanyao=false;break;} const n=t%9; if(n===0||n===8){tanyao=false;break;} } }
+  if(tanyao){ names.push('断么九'); han+=1; }
+  // 役牌：三元牌（白發中）の刻子
+  for(let t=31;t<=33;t++){ if(c[t]>=3){ names.push(HONOR[t-27]+'(役牌)'); han+=1; } }
+  // 役牌：場風の刻子
+  if(roundWind!==null && c[27+roundWind]>=3){ names.push('場風 '+WIND_KANJI[roundWind]); han+=1; }
+  // 役牌：自風の刻子（場風と同じ牌なら二重に付く＝ダブ東など）
+  if(seatWind!==null && c[27+seatWind]>=3){ names.push('自風 '+WIND_KANJI[seatWind]); han+=1; }
+  // 混一色（1種類の数牌＋字牌のみ）
+  const suitsUsed=new Set(); let hasHonor=false;
+  for(let t=0;t<34;t++){ if(c[t]>0){ if(t<27)suitsUsed.add(Math.floor(t/9)); else hasHonor=true; } }
+  if(suitsUsed.size===1){ if(hasHonor){ names.push('混一色'); han+=2; } else { names.push('清一色'); han+=5; } }
+  // 役がなければ最低限「あがり」だけは認める（運用簡略化）
+  if(han===0){ names.push('（役なし・練習ルールで成立）'); han=1; }
+  // ドラ（役ではないが翻が乗る。手牌に含まれるドラの枚数ぶん加算）
+  if(doraTile!==null){
+    const d=c[doraTile];
+    if(d>0){ names.push('ドラ'+d); han+=d; }
+  }
+  return {han,names};
+}
+function scoreFromHan(han){
+  // 簡略点数表
+  if(han>=6)return 12000;
+  return [0,1000,2000,3900,8000,8000][han]||8000;
+}
+
+/* ============ 鳴き対応 点数計算エンジン（検証済み）============ */
+function isHT(t){if(t>=27)return true;const n=t%9;return n===0||n===8;}
+
+// concealed を (needSets面子 + 雀頭) に分解（全パターン）
+function decomposeN(concealed, needSets){
+  const c=counts34(concealed); const res=[];
+  for(let p=0;p<34;p++){ if(c[p]>=2){ c[p]-=2; for(const s of nMelds(c.slice(),needSets)) res.push({pair:p,sets:s}); c[p]+=2; } }
+  return res;
+}
+function nMelds(c,n){
+  if(n===0){ return c.every(x=>x===0)?[[]]:[]; }
+  let i=0; while(i<34&&c[i]===0)i++;
+  if(i===34) return [];
+  const out=[];
+  if(c[i]>=3){ c[i]-=3; for(const r of nMelds(c,n-1)) out.push([{type:'kotsu',t:i},...r]); c[i]+=3; }
+  if(i<27&&i%9<=6&&c[i+1]>0&&c[i+2]>0){ c[i]--;c[i+1]--;c[i+2]--; for(const r of nMelds(c,n-1)) out.push([{type:'shun',t:i},...r]); c[i]++;c[i+1]++;c[i+2]++; }
+  return out;
+}
+function canWinMelds(concealed, melds){ return decomposeN(concealed, 4-melds.length).length>0; }
+
+function basePoints(fu,han){if(han>=13)return 8000;if(han>=11)return 6000;if(han>=8)return 4000;if(han>=6)return 3000;if(han>=5)return 2000;return Math.min(fu*Math.pow(2,2+han),2000);}
+function ceil100(x){return Math.ceil(x/100)*100;}
+function computeScore(fu,han,isDealer,isTsumo){const base=basePoints(fu,han);if(isTsumo){if(isDealer){const e=ceil100(base*2);return{total:e*3,detail:e+'点オール',each:e};}const ko=ceil100(base),oya=ceil100(base*2);return{total:ko*2+oya,detail:`子${ko}・親${oya}`,ko,oya};}return{total:ceil100(base*(isDealer?6:4)),detail:'',ron:ceil100(base*(isDealer?6:4))};}
+const HONOR_J=['東','南','西','北','白','發','中'],WIND_K=['東','南','西','北'];
+
+function evaluateWin(concealed, melds, ctx){
+  const need=4-melds.length;
+  const decs=decomposeN(concealed,need); if(!decs.length)return null;
+  const menzen=melds.every(m=>m.type==='ankan');
+  const meldSets=melds.map(m=>{
+    if(m.type==='chi')return{type:'shun',t:m.t,open:true,kan:false,concealed:false};
+    if(m.type==='pon')return{type:'kotsu',t:m.t,open:true,kan:false,concealed:false};
+    if(m.type==='minkan'||m.type==='kakan')return{type:'kotsu',t:m.t,open:true,kan:true,concealed:false};
+    return{type:'kotsu',t:m.t,open:false,kan:true,concealed:true}; // ankan
+  });
+  // 全牌(面子展開)でタンヤオ/混一/清一判定用のcount
+  const allTiles=[...concealed];
+  for(const m of melds){ if(m.type==='chi'){allTiles.push(m.t,m.t+1,m.t+2);} else {const k=(m.type.includes('kan'))?4:3; for(let i=0;i<k;i++)allTiles.push(m.t);} }
+  const cAll=counts34(allTiles);
+  let tanyao=true; for(let t=0;t<34;t++) if(cAll[t]>0&&isHT(t)){tanyao=false;break;}
+  const suits=new Set(); let honor=false; for(let t=0;t<34;t++) if(cAll[t]>0){ if(t<27)suits.add(Math.floor(t/9)); else honor=true; }
+  const chin=suits.size===1&&!honor, hon=suits.size===1&&honor;
+
+  let best=null;
+  for(const dec of decs){
+    const concealedSets=dec.sets.map(s=>({type:s.type,t:s.t,open:false,kan:false,concealed:true}));
+    const allSets=[...concealedSets,...meldSets];
+    const names=[]; let han=0, yakuman=false;
+    // 待ち解釈は符計算側で最大化。役は構造で確定
+    if(menzen && ctx.isRiichi){names.push('立直');han++;}
+    if(menzen && ctx.isTsumo){names.push('門前ツモ');han++;}
+    // 平和（門前・全順子・役なし雀頭・両面）
+    let pinfu=false;
+    if(menzen && allSets.every(s=>s.type==='shun')){
+      const p=dec.pair;
+      if(!(p>=31||p===27+ctx.roundWind||p===27+ctx.seatWind)){
+        // 両面待ち判定（concealedのいずれかの順子で）
+        for(const s of concealedSets){ if(s.type!=='shun')continue; const n=s.t%9;
+          if(ctx.winTile===s.t&&n<=5){pinfu=true;break;} if(ctx.winTile===s.t+2&&n>=1){pinfu=true;break;} }
+      }
+    }
+    if(pinfu){names.push('平和');han++;}
+    if(tanyao){names.push('断么九');han++;}
+    // 一盃口（門前のみ）
+    const shun=allSets.filter(s=>s.type==='shun').map(s=>s.t).sort((a,b)=>a-b);
+    if(menzen){ for(let i=0;i<shun.length-1;i++) if(shun[i]===shun[i+1]){names.push('一盃口');han++;break;} }
+    // 三色（喰い下がり：門前2/鳴き1）
+    let sanshoku=false; for(const s of shun){const b=s%9; if(b<=6&&shun.includes(b)&&shun.includes(b+9)&&shun.includes(b+18)){sanshoku=true;break;}}
+    if(sanshoku){names.push('三色同順');han+=menzen?2:1;}
+    // 一気通貫（門前2/鳴き1）
+    let ittsu=false; for(let su=0;su<3;su++) if(shun.includes(su*9)&&shun.includes(su*9+3)&&shun.includes(su*9+6)){ittsu=true;break;}
+    if(ittsu){names.push('一気通貫');han+=menzen?2:1;}
+    // 役牌
+    for(const s of allSets) if(s.type==='kotsu'){
+      if(s.t>=31){names.push(HONOR_J[s.t-27]+'(役牌)');han++;}
+      else if(s.t===27+ctx.roundWind){names.push('場風'+WIND_K[ctx.roundWind]);han++;}
+      else if(s.t===27+ctx.seatWind){names.push('自風'+WIND_K[ctx.seatWind]);han++;}
+    }
+    // 対々和
+    const allKotsu=allSets.filter(s=>s.type==='kotsu');
+    if(allKotsu.length===4){names.push('対々和');han+=2;}
+    // 暗刻数（concealedの刻子でロン完成でないもの + ankan）
+    let ankou=0;
+    for(const s of concealedSets) if(s.type==='kotsu'){
+      const ronComp=(!ctx.isTsumo && s.t===ctx.winTile && !(dec.pair===ctx.winTile));
+      // ※ロンで刻子完成かどうかは厳密には待ち解釈。簡略: その刻子の牌==winTile かつ雀頭待ちでないなら明刻扱い
+      if(!ronComp) ankou++;
+    }
+    for(const m of melds) if(m.type==='ankan') ankou++;
+    if(ankou>=4){names.length=0;names.push('四暗刻');yakuman=true;}
+    else if(ankou===3){names.push('三暗刻');han+=2;}
+    // 混一/清一（喰い下がり：混一 門前3/鳴き2、清一 門前6/鳴き5）
+    if(chin){names.push('清一色');han+=menzen?6:5;}
+    else if(hon){names.push('混一色');han+=menzen?3:2;}
+
+    if(!yakuman){
+      if(han===0){names.push('(役なし)');han=1;}
+      for(const dt of (ctx.doraTiles||[])) if(cAll[dt]>0){ /* 後でまとめて */ }
+      // ドラ（複数指標：表ドラ＋槓ドラ）
+      let doraCount=0; for(const dt of (ctx.doraTiles||[])) doraCount+=cAll[dt]||0;
+      if(doraCount>0){names.push('ドラ'+doraCount);han+=doraCount;}
+    }
+    // 符計算
+    let fu;
+    if(yakuman) fu=0;
+    else if(pinfu) fu=ctx.isTsumo?20:30;
+    else fu=calcFu(allSets, concealedSets, dec.pair, ctx, menzen);
+    const effHan=yakuman?13:han;
+    const sc=computeScore(fu,effHan,ctx.isDealer,ctx.isTsumo);
+    if(!best||sc.total>best.score.total) best={han:yakuman?'役満':han,fu,names,score:sc,yakuman,menzen};
+  }
+  return best;
+}
+function calcFu(allSets, concealedSets, pair, ctx, menzen){
+  // 待ち解釈を変えて最大符
+  const placements=[];
+  if(pair===ctx.winTile)placements.push({role:'pair'});
+  concealedSets.forEach((s,idx)=>{ if(s.type==='kotsu'&&s.t===ctx.winTile)placements.push({role:'ckotsu',idx});
+    if(s.type==='shun'&&ctx.winTile>=s.t&&ctx.winTile<=s.t+2)placements.push({role:'shun',idx}); });
+  if(!placements.length)placements.push({role:'none'});
+  let best=0;
+  for(const pl of placements){
+    let fu=20; fu+=ctx.isTsumo?2:(menzen?10:0); // ツモ2 / 門前ロン10 / 鳴きロン0
+    if(pair>=31)fu+=2; if(pair===27+ctx.roundWind)fu+=2; if(pair===27+ctx.seatWind)fu+=2;
+    for(const s of allSets){ if(s.type!=='kotsu')continue; const term=isHT(s.t);
+      let f;
+      if(s.kan){ f = s.open ? (term?16:8) : (term?32:16); }   // 槓
+      else if(s.concealed){ f = term?8:4; }                    // 暗刻
+      else { f = term?4:2; }                                    // 明刻(ポン)
+      fu+=f;
+    }
+    // ロンでconcealed刻子が完成→暗刻でなく明刻として再計算（差し引き）
+    if(!ctx.isTsumo && pl.role==='ckotsu'){
+      const s=concealedSets[pl.idx]; const term=isHT(s.t);
+      fu -= (term?8:4); fu += (term?4:2);
+    }
+    if(pl.role==='pair')fu+=2;
+    else if(pl.role==='shun'){ const s=concealedSets[pl.idx]; if(ctx.winTile===s.t+1)fu+=2;
+      else{const n=s.t%9; if(ctx.winTile===s.t&&n===6)fu+=2; else if(ctx.winTile===s.t+2&&n===0)fu+=2;} }
+    fu=Math.ceil(fu/10)*10; if(fu>best)best=fu;
+  }
+  return best;
+}
+
+/* ============================ AIの捨て牌選び（検証済み）============================ */
+function tileUsefulness(t,c){
+  let s=c[t]*10;
+  if(t<27){ const n=t%9;
+    if(n>0)s+=c[t-1]*4; if(n<8)s+=c[t+1]*4;
+    if(n>1)s+=c[t-2]*2; if(n<7)s+=c[t+2]*2;
+    if(n===0||n===8)s-=1;
+  }else s-=2;
+  return s;
+}
+function aiDiscardIndex(hand){
+  const c=counts34(hand); let worst=0,ws=Infinity;
+  for(let i=0;i<hand.length;i++){ const s=tileUsefulness(hand[i],c); if(s<ws){ws=s;worst=i;} }
+  return worst;
+}
+
+/* ============================ オッズ／賭け ============================ */
+let betMode='rank';   // 'rank'=自分で打つ(自分の順位) / 'winner'=AI観戦(誰が1位)
+let selectedRank=null; // 選択中のインデックス(0-3)
+let betAmount=1000;
+let currentOdds=[];    // 各選択肢のオッズ
+let betLabels=[];      // 各選択肢のラベル
+let betForms=null;     // winnerモード時：各AIの調子インデックス
+
+const FORM_LABELS=[
+  {t:'絶不調 😵',c:'#c2362b'},{t:'不調 😟',c:'#d08a2b'},
+  {t:'平常運転 😐',c:'#aaa'},{t:'好調 🙂',c:'#3aa55a'},{t:'絶好調 🔥',c:'#d8b13a'}
+];
+const PLAY_NAMES=['あなた','下家AI','対面AI','上家AI'];
+const WATCH_NAMES=['Aさん','Bさん','Cさん','Dさん'];
+
+function oddsFromProbs(probs){ return probs.map(p=>Math.max(1.1, Math.round((0.9/p)*10)/10)); }
+
+// === 自分で打つ：自分の順位を予想 ===
+function goToBet(){
+  betMode='rank';
+  selectedRank=null; betAmount=1000; betForms=null;
+  const myForm=Math.floor(Math.random()*5);
+  const bias=(myForm-2)*0.05;
+  let probs=[0.25+bias, 0.25+bias*0.4, 0.25-bias*0.4, 0.25-bias];
+  const sum=probs.reduce((a,b)=>a+b,0); probs=probs.map(p=>p/sum);
+  currentOdds=oddsFromProbs(probs);
+  betLabels=['1位 でフィニッシュ','2位 でフィニッシュ','3位 でフィニッシュ','4位 でフィニッシュ'];
+  // 画面のテキスト
+  document.getElementById('bet-title').textContent='🏇 順位予想（自分で打つ）';
+  document.getElementById('bet-desc').innerHTML='この対局で<b>あなた</b>が何位になるか予想して賭けます。当たればオッズ倍のポイントが戻ります。';
+  document.getElementById('bet-form-card').style.display='';
+  document.getElementById('bet-form-label').textContent='あなたの本日の調子（オッズに反映されます）';
+  const f=FORM_LABELS[myForm];
+  const fd=document.getElementById('form-display'); fd.textContent=f.t; fd.style.color=f.c;
+  openBetScreen();
+}
+
+// === AI観戦：4人のAIのうち誰が1位かを予想（競馬スタイル） ===
+function goToWatch(){
+  betMode='winner';
+  selectedRank=null; betAmount=1000;
+  betForms=[0,1,2,3].map(()=>Math.floor(Math.random()*5));
+  // 各AIの調子から「1位になりやすさ」を出してオッズ化
+  let strength=betForms.map(f=>1+(f-2)*0.28); // 0.44〜1.56
+  const sum=strength.reduce((a,b)=>a+b,0);
+  let probs=strength.map(s=>s/sum);
+  currentOdds=oddsFromProbs(probs);
+  betLabels=WATCH_NAMES.slice();
+  document.getElementById('bet-title').textContent='🤖 AI観戦 1位予想';
+  document.getElementById('bet-desc').innerHTML='4人のAIが対局します。<b>誰が1位</b>になるか予想して賭けましょう（あなたは観戦のみ）。';
+  document.getElementById('bet-form-card').style.display='none';
+  openBetScreen();
+}
+
+function openBetScreen(){
+  renderOddsBoard();
+  setBet(1000);
+  updateStartBtn();
+  document.getElementById('bet-wallet').textContent=fmt(wallet);
+  show('bet');
+}
+function renderOddsBoard(){
+  const board=document.getElementById('odds-board');
+  board.innerHTML='';
+  for(let r=0;r<4;r++){
+    const div=document.createElement('div');
+    div.className='odds-pick'+(selectedRank===r?' selected':'');
+    div.onclick=()=>{ selectedRank=r; renderOddsBoard(); updatePayout(); updateStartBtn(); };
+    // winnerモードはAIの調子バッジを表示
+    let badge='';
+    if(betForms){ const f=FORM_LABELS[betForms[r]];
+      badge=`<span class="form-badge" style="background:${f.c};color:#111;">${f.t}</span>`; }
+    div.innerHTML=`<span class="rank">${betLabels[r]} ${badge}</span>
+      <span class="odd">×${currentOdds[r].toFixed(1)}</span>`;
+    board.appendChild(div);
+  }
+}
+function addBet(n){ setBet(betAmount+n); }
+function setBet(n){
+  betAmount=Math.max(0,Math.min(n, wallet));
+  document.getElementById('bet-amount').textContent=fmt(betAmount);
+  updatePayout(); updateStartBtn();
+}
+function updatePayout(){
+  const el=document.getElementById('payout-preview');
+  if(selectedRank===null){ el.textContent='―'; return; }
+  el.textContent=fmt(Math.floor(betAmount*currentOdds[selectedRank]));
+}
+function updateStartBtn(){
+  const btn=document.getElementById('start-game-btn');
+  if(selectedRank===null){ btn.disabled=true; btn.textContent=(betMode==='winner'?'1位になるAIを選んでください':'順位を選んでください'); }
+  else if(betAmount<=0){ btn.disabled=true; btn.textContent='賭け金を入れてください'; }
+  else if(betAmount>wallet){ btn.disabled=true; btn.textContent='ポイントが足りません'; }
+  else if(betMode==='winner'){ btn.disabled=false; btn.textContent=`${betLabels[selectedRank]}に ${fmt(betAmount)}pt 賭けて観戦開始`; }
+  else{ btn.disabled=false; btn.textContent=`${selectedRank+1}位に ${fmt(betAmount)}pt 賭けて対局開始`; }
+}
+
+/* ============================ 麻雀の対局進行 ============================ */
+let G=null; // ゲーム状態
+
+function buildWall(){
+  const w=[];
+  for(let t=0;t<34;t++) for(let k=0;k<4;k++) w.push(t);
+  for(let i=w.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [w[i],w[j]]=[w[j],w[i]]; }
+  return w;
+}
+function sortHand(h){ h.sort((a,b)=>a-b); return h; }
+
+// 共通：対局を初期化して開始
+function beginMatch(watch){
+  wallet-=betAmount; save();
+  G={
+    round:0,
+    scores:[25000,25000,25000,25000],
+    riichiSticks:0,
+    watchMode:watch,
+    seatNames: watch?WATCH_NAMES.slice():PLAY_NAMES.slice(),
+    bet:{mode:betMode, index:selectedRank, amount:betAmount, odds:currentOdds[selectedRank]},
+  };
+  show('game');
+  startHand();
+}
+function startGame(){
+  if(betMode==='winner') beginMatch(true);
+  else beginMatch(false);
+}
+function startHand(){
+  const wall=buildWall();
+  G.wall=wall;
+  G.hands=[[],[],[],[]];
+  for(let i=0;i<13;i++) for(let p=0;p<4;p++) G.hands[p].push(wall.pop());
+  G.hands.forEach(sortHand);
+  G.discards=[[],[],[],[]];
+  G.melds=[[],[],[],[]];   // 各家の鳴き（ポン/チー/カン）
+  G.drawn=null;       // 今ツモった牌（自分用ハイライト）
+  G.lastDiscard=null; // 直前の捨て牌 {by,tile}
+  G.over=false;
+  G.riichi=[false,false,false,false]; // 各家がリーチ宣言済みか
+  G.playerRiichiMode=false;           // あなたがリーチ宣言ボタンを押した状態
+  G.calling=false;                    // 鳴きの選択待ち中フラグ
+  // 場風＝東（東風戦）。親(=東)は局ごとに移動。自風は親からの席順で決まる
+  G.roundWind=0; // 0=東
+  G.dealer=G.round%4; // 東1局→席0が親 …
+  G.turn=G.dealer;    // 親からツモ開始
+  // 各席の自風: 親=東(0) → 以降 南西北
+  G.seatWind=[0,0,0,0];
+  for(let p=0;p<4;p++) G.seatWind[p]=(p-G.dealer+4)%4;
+  // ドラ表示牌を1枚めくる（槓ドラは配列で追加）
+  G.doraIndicator=wall.shift();
+  G.dora=doraFromIndicator(G.doraIndicator);
+  G.doraIndicators=[G.doraIndicator];
+  G.doraTiles=[G.dora];
+  document.getElementById('round-badge').textContent='東'+(G.round+1)+'局';
+  renderTable();
+  // 親からツモ開始（観戦モード or 親がAIならAI、親があなたならあなた）
+  const first=G.dealer;
+  if(G.watchMode || first!==0) setTimeout(()=>aiTurn(first), 500);
+  else setTimeout(()=>playerDraw(), 400);
+}
+
+function renderTable(){
+  // ドラ表示牌（左上）。槓ドラがあれば並べる
+  const dt=document.getElementById('dora-tile'); dt.innerHTML='';
+  (G.doraIndicators||[G.doraIndicator]).forEach(ind=>{ if(ind!==undefined) dt.appendChild(tileEl(ind,{small:true})); });
+  // 中央マーカー：場風・残り山・供託・各席の自風
+  document.getElementById('ba-wind').textContent=WIND_KANJI[G.roundWind]+'場';
+  document.getElementById('ba-sub').textContent='残り山 '+G.wall.length+'枚';
+  const rs=document.getElementById('riichi-sticks');
+  rs.textContent = G.riichiSticks>0 ? ('🔴リーチ棒'+G.riichiSticks) : '';
+  for(let p=0;p<4;p++){
+    const w=document.getElementById('wind-'+p);
+    w.textContent=WIND_KANJI[G.seatWind[p]];
+    // 席0(あなた/下=自分)を強調。観戦モードでは強調なし
+    w.classList.toggle('me', p===0 && !G.watchMode);
+    // リーチ棒：その席がリーチ済みなら表示
+    document.getElementById('rstick-'+p).classList.toggle('show', !!(G.riichi&&G.riichi[p]));
+  }
+  // 山（伏せ牌）を四方に分けて表示。残り枚数を4分割
+  renderWalls();
+  // 持ち点・枚数・自風表示（リーチ者にはバッジ）
+  const ss=document.getElementById('seat-scores'); ss.innerHTML='';
+  for(let p=0;p<4;p++){
+    const s=document.createElement('span');
+    s.className='s'+(G.turn===p&&!G.over?' turn':'');
+    const cnt=G.hands[p].length;
+    const oya=(p===G.dealer)?'(親)':'';
+    s.textContent=`${G.seatNames[p]}${oya} ${WIND_KANJI[G.seatWind[p]]} ${fmt(G.scores[p])}・${cnt}枚`+(G.riichi&&G.riichi[p]?' 🔴':'');
+    ss.appendChild(s);
+  }
+  // 捨て牌（極小・直近のみ。多くてもはみ出さない）
+  for(let p=0;p<4;p++){
+    const el=document.getElementById('discard-'+p); el.innerHTML='';
+    const vertical=(p===1||p===3);
+    const arr=G.discards[p].slice(vertical?-8:-12);
+    arr.forEach(t=>{ const e=tileEl(t,{small:true}); e.classList.add('disc'); el.appendChild(e); });
+  }
+  // 各AIの手牌（伏せ牌＋枚数）＋鳴き牌（末尾＝右端）。レーンからはみ出さないよう極小で
+  for(const p of [1,2,3]){
+    const el=document.getElementById('aihand-'+p); el.innerHTML='';
+    const meldTiles=[]; G.melds[p].forEach(m=>meldFaceTiles(m).forEach((t,i)=>meldTiles.push({t,ankanHidden:(m.type==='ankan'&&(i===0||i===3))})));
+    const vertical=(p===1||p===3);
+    const budget=vertical?13:16;
+    const n=G.hands[p].length;
+    const backShown=Math.max(1,Math.min(n, budget-meldTiles.length));
+    for(let i=0;i<backShown;i++){ const b=tileEl(0,{back:true}); b.classList.add('tiny'); el.appendChild(b); }
+    // 鳴き牌（晒し）を極小・末尾に
+    meldTiles.forEach(mt=>{ const e=mt.ankanHidden?tileEl(0,{back:true}):tileEl(mt.t,{tiny:true}); e.classList.add('tiny','melded'); el.appendChild(e); });
+    const c=document.createElement('span'); c.className='count'; c.textContent=n+'枚'; el.appendChild(c);
+  }
+  // 自分の手牌
+  renderMyHand();
+}
+// 鳴き面子の表示用の牌（暗槓は両端のみ伏せ）
+function meldFaceTiles(m){
+  if(m.type==='chi') return [m.t,m.t+1,m.t+2];
+  if(m.type==='pon') return [m.t,m.t,m.t];
+  if(m.type==='ankan') return [m.t,m.t,m.t,m.t];
+  return [m.t,m.t,m.t,m.t]; // minkan/kakan
+}
+// 山（牌の壁）を四方に描画。横辺7枚・縦辺5枚の中央寄せセグメント（角は空けて重なり回避）
+function renderWalls(){
+  const ids=['wall-top','wall-right','wall-bottom','wall-left'];
+  const caps=[7,5,7,5];
+  const rem=G.wall.length;
+  const per=Math.ceil(rem/4);
+  let left=rem;
+  ids.forEach((id,k)=>{
+    const el=document.getElementById(id); el.innerHTML='';
+    const n=Math.min(per,left,caps[k]); left-=Math.min(per,left);
+    for(let i=0;i<n;i++){ const b=tileEl(0,{back:true}); b.classList.add('wallt'); el.appendChild(b); }
+  });
+}
+function renderMyHand(){
+  const row=document.getElementById('my-hand'); row.innerHTML='';
+  const hand=G.hands[0];
+  // 観戦モード：席0もAIなので伏せて見せる
+  if(G.watchMode){
+    hand.forEach(()=>{ const b=tileEl(0,{back:true}); row.appendChild(b); });
+    G.melds[0].forEach(m=>{ meldFaceTiles(m).forEach(t=>row.appendChild(tileEl(t,{small:true}))); });
+    return;
+  }
+  const locked = G.riichi && G.riichi[0];
+  const canAct = G.turn===0 && !G.over && mustDiscard(0) && !locked;
+  hand.forEach((t,idx)=>{
+    const el=tileEl(t);
+    if(canAct){
+      el.onclick=()=>playerDiscard(idx);
+      if(G.drawn!==null && idx===hand.length-1 && t===G.drawn) el.classList.add('drawn');
+    }
+    row.appendChild(el);
+  });
+  // 自分の鳴き牌（晒し）を右側に区切って表示
+  if(G.melds[0].length){
+    const sep=document.createElement('div'); sep.style.width='10px'; row.appendChild(sep);
+    G.melds[0].forEach(m=>{ meldFaceTiles(m).forEach(t=>{ const e=tileEl(t,{small:true}); e.classList.add('melded'); row.appendChild(e); }); });
+  }
+}
+
+function toast(msg, ms=1100){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  return new Promise(res=>setTimeout(()=>{ t.classList.remove('show'); res(); }, ms));
+}
+
+/* ----- 持ち時間タイマー（あなたの手番のみ・右下表示） ----- */
+let _timer=null;
+function startTurnTimer(onTimeout, seconds=30){
+  clearTurnTimer();
+  if(G.watchMode) return; // 観戦中は不要
+  let left=seconds;
+  const el=document.getElementById('turn-timer');
+  const num=document.getElementById('timer-num');
+  el.style.display='flex'; num.textContent=left; el.classList.toggle('warn', left<=10);
+  _timer=setInterval(()=>{
+    left--;
+    num.textContent=Math.max(0,left);
+    el.classList.toggle('warn', left<=10);
+    if(left<=0){ clearTurnTimer(); if(G && !G.over) onTimeout(); }
+  },1000);
+}
+function clearTurnTimer(){
+  if(_timer){ clearInterval(_timer); _timer=null; }
+  const el=document.getElementById('turn-timer'); if(el) el.style.display='none';
+}
+
+/* ----- 自分のツモ ----- */
+function playerDraw(){
+  if(checkExhaust())return;
+  G.turn=0;
+  const t=G.wall.pop();
+  G.drawn=t;
+  G.hands[0].push(t); // ソートせず末尾に置いてツモ牌を見せる
+  const win=winHand(0);
+  // すでにリーチ済みなら、ツモあがり以外は自動でツモ切り
+  if(G.riichi[0]){
+    if(win){
+      showActionBar([
+        {label:'🀅 ツモ！',cls:'',fn:()=>declareWin(0,true,null,G.drawn)},
+        {label:'スルー（ツモ切り）',cls:'sub',fn:()=>{ clearActionBar(); tsumogiri(); }}
+      ]);
+      renderTable();
+      startTurnTimer(()=>{ clearActionBar(); tsumogiri(); }); // 30秒で自動ツモ切り
+      return;
+    }else{
+      clearActionBar(); renderTable();
+      setTimeout(tsumogiri, 600); // ツモ切り（自動）
+      return;
+    }
+  }
+  // リーチ前
+  const actions=[];
+  if(win) actions.push({label:'🀅 ツモ！',cls:'',fn:()=>declareWin(0,true,null,G.drawn)});
+  // 暗槓・加槓できるか
+  const kanOpts=selfKanOptions(0);
+  if(kanOpts.length){ actions.push({label:'🀫 カン',cls:'sub',fn:()=>chooseSelfKan(kanOpts)}); }
+  // リーチ宣言できるか
+  if(canDeclareRiichi()){
+    actions.push({label:'🔴 リーチ',cls:'sub',fn:enterRiichiMode});
+  }
+  if(actions.length) showActionBar(actions); else clearActionBar();
+  renderTable();
+  // 30秒以内に打牌しないと自動ツモ切り
+  startTurnTimer(()=>{ G.playerRiichiMode=false; tsumogiri(); });
+}
+// あなたがリーチ宣言可能か
+function canDeclareRiichi(){
+  if(G.riichi[0]) return false;
+  if(!isMenzen(0)) return false;   // 鳴いていたらリーチ不可
+  if(G.wall.length<4) return false;
+  if(G.scores[0]<1000) return false;
+  const hand=G.hands[0];
+  // どれか1枚捨ててテンパイになるか
+  for(let i=0;i<hand.length;i++){
+    const rest=hand.slice(0,i).concat(hand.slice(i+1));
+    if(tenpaiMelds(rest, G.melds[0])) return true;
+  }
+  return false;
+}
+// リーチ宣言モードに入る（次に捨てる牌でリーチ成立）
+function enterRiichiMode(){
+  G.playerRiichiMode=true;
+  showActionBar([{label:'リーチをやめる',cls:'sub',fn:cancelRiichiMode}]);
+  toast('リーチ！ 捨てる牌を選んでください', 1400);
+}
+function cancelRiichiMode(){
+  G.playerRiichiMode=false;
+  clearActionBar();
+  // ツモあがり/リーチ可能なら元のボタンを戻す
+  const actions=[];
+  if(winHand(0)) actions.push({label:'🀅 ツモ！',cls:'',fn:()=>declareWin(0,true,null,G.drawn)});
+  if(canDeclareRiichi()) actions.push({label:'🔴 リーチ',cls:'sub',fn:enterRiichiMode});
+  if(actions.length) showActionBar(actions);
+}
+// リーチ中のツモ切り（引いた牌をそのまま捨てる）
+function tsumogiri(){
+  if(G.over)return;
+  const idx=G.hands[0].length-1; // 末尾＝引いたばかりの牌
+  doDiscard(idx);
+}
+/* ----- 自分の打牌 ----- */
+function playerDiscard(idx){
+  if(G.turn!==0||G.over)return;
+  // リーチ宣言モード中：その牌を切ってテンパイが保てるか確認
+  if(G.playerRiichiMode){
+    const rest=G.hands[0].slice(0,idx).concat(G.hands[0].slice(idx+1));
+    if(!tenpaiMelds(rest, G.melds[0])){
+      toast('その牌だとテンパイになりません', 1300);
+      return;
+    }
+    // リーチ成立：1000点供託
+    G.riichi[0]=true;
+    G.scores[0]-=1000;
+    G.riichiSticks++;
+    G.playerRiichiMode=false;
+    toast('🔴 リーチ宣言！', 900);
+  }
+  doDiscard(idx);
+}
+// 実際に1枚捨てて次へ進める共通処理
+function doDiscard(idx){
+  clearTurnTimer();
+  const t=G.hands[0].splice(idx,1)[0];
+  G.drawn=null;
+  G.discards[0].push(t);
+  sortHand(G.hands[0]);
+  clearActionBar();
+  G.lastDiscard={by:0,tile:t};
+  renderTable();
+  nextAfterDiscard(0);
+}
+
+/* ----- AIの手番 ----- */
+async function aiTurn(p){
+  if(G.over)return;
+  if(checkExhaust())return;
+  G.turn=p; renderTable();
+  await new Promise(r=>setTimeout(r,500));
+  const t=G.wall.pop();
+  G.hands[p].push(t);
+  // ツモあがり判定
+  if(winHand(p)){
+    return declareWin(p,true,null,t);
+  }
+  let di;
+  if(G.riichi[p]){
+    di=G.hands[p].length-1; // リーチ済みはツモ切り
+  }else{
+    di=aiDiscardIndex(G.hands[p]);
+    const rest=G.hands[p].slice(0,di).concat(G.hands[p].slice(di+1));
+    if(isMenzen(p) && tenpaiMelds(rest,G.melds[p]) && G.wall.length>=4 && G.scores[p]>=1000){
+      G.riichi[p]=true; G.scores[p]-=1000; G.riichiSticks++;
+      await toast(G.seatNames[p]+' リーチ！', 900);
+    }
+  }
+  const dt=G.hands[p].splice(di,1)[0];
+  G.discards[p].push(dt);
+  G.lastDiscard={by:p,tile:dt};
+  renderTable();
+  nextAfterDiscard(p);
+}
+
+/* ============================ 鳴き（ポン・チー・カン）============================ */
+// その牌をポンできるか（手の内に2枚以上）
+function canPon(p,t){ return G.hands[p].filter(x=>x===t).length>=2; }
+// 大明槓できるか（手の内に3枚）
+function canDaiminkan(p,t){ return G.hands[p].filter(x=>x===t).length>=3; }
+// チーできる順子の組み合わせ（上家からのみ）。返り値: [[a,b],...]（a,bは手の内の牌）
+function chiOptions(p,t){
+  if(t>=27) return []; const n=t%9; const opts=[];
+  const has=x=>G.hands[p].includes(x);
+  if(n>=2 && has(t-2)&&has(t-1)) opts.push([t-2,t-1]);
+  if(n>=1 && n<=7 && has(t-1)&&has(t+1)) opts.push([t-1,t+1]);
+  if(n<=6 && has(t+1)&&has(t+2)) opts.push([t+1,t+2]);
+  return opts;
+}
+// 役牌か（その席にとって）
+function isYakuhaiTile(p,t){ return t>=31 || t===27+G.roundWind || t===27+G.seatWind[p]; }
+// 自分の手番での暗槓・加槓の選択肢
+function selfKanOptions(p){
+  const opts=[]; const c=counts34(G.hands[p]);
+  for(let t=0;t<34;t++) if(c[t]===4) opts.push({kind:'ankan',t});
+  for(const m of G.melds[p]) if(m.type==='pon' && c[m.t]>=1) opts.push({kind:'kakan',t:m.t});
+  return opts;
+}
+// 槓ドラを増やす
+function addKanDora(){ if(G.wall.length<=0)return; const ind=G.wall.shift(); G.doraIndicators.push(ind); G.doraTiles.push(doraFromIndicator(ind)); }
+
+// 河から呼ばれた牌を取り除く
+function removeLastDiscardTile(){ const d=G.lastDiscard; if(d&&G.discards[d.by].length){ G.discards[d.by].pop(); } }
+
+// ポン実行
+function executePon(p,t,from){
+  clearTurnTimer(); clearActionBar(); G.calling=false;
+  removeLastDiscardTile();
+  for(let k=0;k<2;k++){ const i=G.hands[p].indexOf(t); G.hands[p].splice(i,1); }
+  G.melds[p].push({type:'pon',t,from});
+  sortHand(G.hands[p]);
+  toast(G.seatNames[p]+' ポン', 800);
+  afterCall(p);
+}
+// チー実行
+function executeChi(p,pairTiles,t,from){
+  clearTurnTimer(); clearActionBar(); G.calling=false;
+  removeLastDiscardTile();
+  for(const x of pairTiles){ const i=G.hands[p].indexOf(x); G.hands[p].splice(i,1); }
+  const base=Math.min(pairTiles[0],pairTiles[1],t);
+  G.melds[p].push({type:'chi',t:base,from});
+  sortHand(G.hands[p]);
+  toast(G.seatNames[p]+' チー', 800);
+  afterCall(p);
+}
+// 大明槓実行
+function executeDaiminkan(p,t,from){
+  clearTurnTimer(); clearActionBar(); G.calling=false;
+  removeLastDiscardTile();
+  for(let k=0;k<3;k++){ const i=G.hands[p].indexOf(t); G.hands[p].splice(i,1); }
+  G.melds[p].push({type:'minkan',t,from});
+  addKanDora();
+  toast(G.seatNames[p]+' カン', 800);
+  // 嶺上ツモ
+  const r=G.wall.pop(); G.hands[p].push(r); G.drawn=(p===0)?r:null;
+  if(winHand(p)){ return declareWin(p,true,null,r); }
+  afterCall(p, true);
+}
+// 暗槓実行（自分の手番）
+function executeAnkan(p,t){
+  clearTurnTimer(); clearActionBar();
+  for(let k=0;k<4;k++){ const i=G.hands[p].indexOf(t); G.hands[p].splice(i,1); }
+  G.melds[p].push({type:'ankan',t});
+  addKanDora();
+  const r=G.wall.pop(); G.hands[p].push(r); G.drawn=(p===0)?r:null;
+  toast('カン（暗槓）',800);
+  if(winHand(p)){ return declareWin(p,true,null,r); }
+  if(p===0&&!G.watchMode) playerTurnOptions(); else renderTable();
+}
+// 加槓実行（自分の手番）
+function executeKakan(p,t){
+  clearTurnTimer(); clearActionBar();
+  const m=G.melds[p].find(m=>m.type==='pon'&&m.t===t); if(m){ m.type='kakan'; }
+  const i=G.hands[p].indexOf(t); G.hands[p].splice(i,1);
+  addKanDora();
+  const r=G.wall.pop(); G.hands[p].push(r); G.drawn=(p===0)?r:null;
+  toast('カン（加槓）',800);
+  if(winHand(p)){ return declareWin(p,true,null,r); }
+  if(p===0&&!G.watchMode) playerTurnOptions(); else renderTable();
+}
+// 自分のカン選択（複数あればボタン提示）
+function chooseSelfKan(opts){
+  clearTurnTimer();
+  if(opts.length===1){ const o=opts[0]; return o.kind==='ankan'?executeAnkan(0,o.t):executeKakan(0,o.t); }
+  showActionBar(opts.map(o=>({label:(o.kind==='ankan'?'暗槓 ':'加槓 ')+tileName(o.t),cls:'sub',
+    fn:()=>o.kind==='ankan'?executeAnkan(0,o.t):executeKakan(0,o.t)})).concat([{label:'やめる',cls:'sub',fn:playerTurnOptions}]));
+}
+// 鳴き後：そのプレイヤーが打牌する
+function afterCall(p, drewTile){
+  G.turn=p; renderTable();
+  if(p===0 && !G.watchMode){
+    // あなた：打牌待ち（カン直後は嶺上牌を引いた状態）
+    playerTurnOptionsForCall(drewTile);
+  }else{
+    // AI：少し待って打牌
+    setTimeout(()=>{ aiDiscardAfterCall(p); }, 600);
+  }
+}
+function aiDiscardAfterCall(p){
+  if(G.over)return;
+  const di=aiDiscardIndex(G.hands[p]);
+  const dt=G.hands[p].splice(di,1)[0];
+  G.discards[p].push(dt);
+  G.lastDiscard={by:p,tile:dt};
+  G.drawn=null;
+  renderTable();
+  nextAfterDiscard(p);
+}
+// 自分の手番オプション（ツモ後）
+function playerTurnOptions(){
+  const actions=[];
+  if(winHand(0)) actions.push({label:'🀅 ツモ！',cls:'',fn:()=>declareWin(0,true,null,G.drawn)});
+  const kanOpts=selfKanOptions(0);
+  if(kanOpts.length) actions.push({label:'🀫 カン',cls:'sub',fn:()=>chooseSelfKan(kanOpts)});
+  if(canDeclareRiichi()) actions.push({label:'🔴 リーチ',cls:'sub',fn:enterRiichiMode});
+  if(actions.length) showActionBar(actions); else clearActionBar();
+  renderTable();
+  startTurnTimer(()=>{ G.playerRiichiMode=false; tsumogiri(); });
+}
+// 鳴いた後の打牌待ち（カンなら嶺上を引いている）
+function playerTurnOptionsForCall(drewTile){
+  const actions=[];
+  if(drewTile){ // 大明槓直後：ツモ/さらにカン可
+    if(winHand(0)) actions.push({label:'🀅 ツモ！',cls:'',fn:()=>declareWin(0,true,null,G.drawn)});
+    const kanOpts=selfKanOptions(0);
+    if(kanOpts.length) actions.push({label:'🀫 カン',cls:'sub',fn:()=>chooseSelfKan(kanOpts)});
+  }
+  if(actions.length) showActionBar(actions); else clearActionBar();
+  renderTable();
+  startTurnTimer(()=>{ tsumogiri(); }); // 鳴き後の打牌も30秒
+}
+
+/* ----- 捨て牌のあとの処理（ロン→鳴き→次の手番）----- */
+function ronnersFor(discarder,t){ const r=[]; for(let p=0;p<4;p++){ if(p!==discarder && canWinMelds([...G.hands[p],t],G.melds[p])) r.push(p); } return r; }
+// AIのロン（捨て牌以外の席）。1人でも実行したらtrue
+function aiRon(discarder,t,excludeHuman){
+  for(let p=0;p<4;p++){
+    if(p===discarder) continue;
+    if(excludeHuman && p===0) continue;
+    if(canWinMelds([...G.hands[p],t],G.melds[p])){ G.hands[p].push(t); declareWin(p,false,discarder); return true; }
+  }
+  return false;
+}
+// AIの鳴き（ポンのみ・役牌限定）。実行したらtrue
+function aiCall(discarder,t){
+  // 親順(捨て手の次)から確認
+  for(let k=1;k<4;k++){ const p=(discarder+k)%4;
+    if(p===0 && !G.watchMode) continue; // 人間は別処理
+    if(G.riichi[p]) continue;            // リーチ後は鳴かない
+    if(canPon(p,t) && isYakuhaiTile(p,t)){ executePon(p,t,discarder); return true; }
+  }
+  return false;
+}
+function nextAfterDiscard(discarder){
+  const t=G.lastDiscard.tile;
+  // 観戦モード：全自動
+  if(G.watchMode){
+    if(aiRon(discarder,t,false)) return;
+    if(aiCall(discarder,t)) return;
+    return proceedToNext(discarder);
+  }
+  // あなたの選択肢を集める
+  const ron = discarder!==0 && canWinMelds([...G.hands[0],t],G.melds[0]);
+  const pon = discarder!==0 && !G.riichi[0] && canPon(0,t);
+  const kan = discarder!==0 && !G.riichi[0] && canDaiminkan(0,t);
+  const chis = (discarder===3 && !G.riichi[0]) ? chiOptions(0,t) : []; // 上家(席3)からのみチー
+  if(ron||pon||kan||chis.length){
+    G.calling=true;
+    const actions=[];
+    if(ron) actions.push({label:'🀄 ロン！',cls:'',fn:()=>{ clearTurnTimer(); clearActionBar(); G.calling=false; G.hands[0].push(t); declareWin(0,false,discarder); }});
+    if(pon) actions.push({label:'ポン',cls:'sub',fn:()=>{ if(aiRon(discarder,t,true)) return; executePon(0,t,discarder); }});
+    if(kan) actions.push({label:'カン',cls:'sub',fn:()=>{ if(aiRon(discarder,t,true)) return; executeDaiminkan(0,t,discarder); }});
+    if(chis.length){
+      if(chis.length===1) actions.push({label:'チー',cls:'sub',fn:()=>{ if(aiRon(discarder,t,true)) return; executeChi(0,chis[0],t,discarder); }});
+      else actions.push({label:'チー',cls:'sub',fn:()=>chooseChi(chis,t,discarder)});
+    }
+    const skip=()=>{ clearTurnTimer(); clearActionBar(); G.calling=false; if(aiRon(discarder,t,false)) return; if(aiCall(discarder,t)) return; proceedToNext(discarder); };
+    actions.push({label:'スキップ',cls:'sub',fn:skip});
+    showActionBar(actions);
+    startTurnTimer(skip); // 30秒で自動スキップ
+    return;
+  }
+  // あなたに選択肢なし → AIのロン/鳴きを確認して進行
+  if(aiRon(discarder,t,false)) return;
+  if(aiCall(discarder,t)) return;
+  proceedToNext(discarder);
+}
+// チーの組み合わせ選択
+function chooseChi(chis,t,from){
+  clearTurnTimer();
+  showActionBar(chis.map(seq=>({label:'チー '+tileName(seq[0])+tileName(seq[1])+tileName(t),cls:'sub',
+    fn:()=>{ if(aiRon(from,t,true)) return; executeChi(0,seq,t,from); }})).concat([{label:'やめる',cls:'sub',fn:()=>nextAfterDiscard(from)}]));
+}
+function proceedToNext(discarder){
+  if(G.over)return;
+  const next=(discarder+1)%4;
+  if(next===0 && !G.watchMode){ setTimeout(playerDraw,400); }
+  else { aiTurn(next); }
+}
+
+/* ----- 山切れ（流局）----- */
+function checkExhaust(){
+  if(G.wall.length<=0 && !G.over){
+    G.over=true;
+    clearTurnTimer();
+    showHandResult({draw:true});
+    return true;
+  }
+  return false;
+}
+
+/* ----- あがり処理（正確な点数計算）----- */
+function declareWin(winner, isTsumo, discarder=null, winTile=null){
+  if(G.over)return; G.over=true;
+  clearTurnTimer();
+  clearActionBar();
+  const wt = isTsumo ? winTile : G.lastDiscard.tile;
+  const isDealer = (winner===G.dealer);
+  const res = evaluateWin(G.hands[winner], G.melds[winner], {
+    isTsumo, isRiichi:G.riichi[winner], roundWind:G.roundWind,
+    seatWind:G.seatWind[winner], isDealer, doraTiles:G.doraTiles, winTile:wt
+  });
+  const sc=res.score;
+  // 点棒の移動（親・子、ツモ・ロンで厳密に）
+  if(isTsumo){
+    if(isDealer){
+      for(let p=0;p<4;p++) if(p!==winner){ G.scores[p]-=sc.each; G.scores[winner]+=sc.each; }
+    }else{
+      for(let p=0;p<4;p++) if(p!==winner){ const pay=(p===G.dealer)?sc.oya:sc.ko; G.scores[p]-=pay; G.scores[winner]+=pay; }
+    }
+  }else{
+    G.scores[discarder]-=sc.total; G.scores[winner]+=sc.total;
+  }
+  // 供託リーチ棒を勝者が回収
+  const collected=G.riichiSticks*1000;
+  G.scores[winner]+=collected;
+  G.riichiSticks=0;
+  showHandResult({winner,isTsumo,discarder,res,collected});
+}
+
+/* ----- 局結果モーダル ----- */
+function showHandResult(r){
+  renderTable();
+  const ov=document.getElementById('hand-result');
+  const body=document.getElementById('hand-result-body');
+  let html='';
+  if(r.draw){
+    html=`<div class="title-xl" style="font-size:32px;">流局</div>
+      <p class="muted">山が無くなりました。点数移動なし。</p>`;
+  }else{
+    const winName=G.seatNames[r.winner];
+    const doraEl = (G.doraIndicator!==undefined)
+      ? `<div style="display:flex;align-items:center;gap:6px;justify-content:center;font-size:12px;margin-bottom:6px;" class="muted">ドラ表示牌：<span id="dora-show"></span></div>` : '';
+    const stickEl = r.collected>0 ? `<div class="gold" style="font-size:13px;">＋ リーチ棒 ${fmt(r.collected)}点 回収</div>` : '';
+    const res=r.res, sc=res.score;
+    const hanFu = res.yakuman ? '<b>役満</b>' : `${res.han}翻 ${res.fu}符`;
+    const breakdown = r.isTsumo ? `（${sc.detail}）` : '';
+    html=`<div class="gold" style="font-weight:900;letter-spacing:.2em;">${r.isTsumo?'ツモ':'ロン'}</div>
+      <div class="title-xl" style="font-size:30px;margin:4px 0;">${winName} のあがり</div>
+      ${doraEl}
+      <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin:10px 0;" id="winhand"></div>
+      <div class="card" style="text-align:left;margin:8px 0;">
+        <div class="muted" style="font-size:12px;">成立した役</div>
+        <div style="font-weight:800;">${res.names.join('・')}</div>
+        <div style="margin-top:6px;" class="gold">${hanFu} ／ ${fmt(sc.total)}点 ${breakdown}</div>
+        ${stickEl}
+      </div>`;
+  }
+  const isLast=(G.round>=3);
+  html+=`<button class="btn" style="margin-top:8px;" id="next-btn">${isLast?'対局結果へ':'次の局へ'}</button>`;
+  body.innerHTML=html;
+  if(!r.draw){
+    const wh=body.querySelector('#winhand');
+    sortHand(G.hands[r.winner]).forEach(t=>wh.appendChild(tileEl(t,{small:false})));
+    // 鳴き牌
+    if(G.melds[r.winner] && G.melds[r.winner].length){
+      const sep=document.createElement('div'); sep.style.width='8px'; wh.appendChild(sep);
+      G.melds[r.winner].forEach(m=>{ meldFaceTiles(m).forEach(t=>{ const e=tileEl(t,{small:true}); e.classList.add('melded'); wh.appendChild(e); }); });
+    }
+    const ds=body.querySelector('#dora-show');
+    if(ds && G.doraIndicator!==undefined) ds.appendChild(tileEl(G.doraIndicator,{small:true}));
+  }
+  body.querySelector('#next-btn').onclick=()=>{
+    ov.classList.remove('show');
+    if(isLast){ finishMatch(); }
+    else{ G.round++; startHand(); }
+  };
+  ov.classList.add('show');
+}
+
+/* ----- アクションバー（ツモ/ロンボタン）----- */
+function showActionBar(actions){
+  const bar=document.getElementById('action-bar'); bar.innerHTML='';
+  actions.forEach(a=>{
+    const b=document.createElement('button');
+    b.className='btn '+(a.cls||'');
+    b.textContent=a.label; b.onclick=a.fn;
+    bar.appendChild(b);
+  });
+}
+function clearActionBar(){ document.getElementById('action-bar').innerHTML=''; }
+
+/* ----- 対局終了 → 順位・精算 ----- */
+function finishMatch(){
+  const order=[0,1,2,3].sort((a,b)=>G.scores[b]-G.scores[a]); // 1位→4位の席番号
+  const winnerSeat=order[0];
+  const rankColors=['#d8b13a','#cfd2d6','#c98a4b','#888'];
+  const rows=order.map((p,i)=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 10px;border-radius:8px;margin:3px 0;
+      background:${p===G.bet.index?'rgba(216,177,58,.15)':'rgba(0,0,0,.2)'};">
+      <span style="font-weight:900;color:${rankColors[i]};">${i+1}位 ${G.seatNames[p]}</span>
+      <span style="font-variant-numeric:tabular-nums;">${fmt(G.scores[p])}点</span></div>`).join('');
+
+  let detailRows='', betResult, payout=0;
+  if(G.bet.mode==='winner'){
+    // 観戦：賭けたAIが1位なら的中（順位ボーナスなし）
+    const hit=(winnerSeat===G.bet.index);
+    if(hit){ payout=Math.floor(G.bet.amount*G.bet.odds); wallet+=payout; betResult=`的中！ +${fmt(payout)}pt`; }
+    else betResult=`はずれ（${fmt(G.bet.amount)}pt没収）`;
+    history.push({watch:true, label:`${G.seatNames[winnerSeat]}が1位`, betResult});
+    detailRows=`
+      <div style="display:flex;justify-content:space-between;"><span>1位</span><b class="gold">${G.seatNames[winnerSeat]}</b></div>
+      <div style="display:flex;justify-content:space-between;"><span>あなたの予想（${WATCH_NAMES[G.bet.index]} ×${G.bet.odds.toFixed(1)}）</span><b>${betResult}</b></div>`;
+  }else{
+    // 自分で打つ：順位ボーナス＋自分の順位予想を精算
+    const myRank=order.indexOf(0);
+    const bonus=[15000,8000,3000,0][myRank];
+    wallet+=bonus;
+    if(G.bet.index===myRank){ payout=Math.floor(G.bet.amount*G.bet.odds); wallet+=payout; betResult=`的中！ +${fmt(payout)}pt`; }
+    else betResult=`はずれ（${fmt(G.bet.amount)}pt没収）`;
+    history.push({rank:myRank+1, bonus, betResult});
+    detailRows=`
+      <div style="display:flex;justify-content:space-between;"><span>あなたの順位</span><b class="gold">${myRank+1}位</b></div>
+      <div style="display:flex;justify-content:space-between;"><span>順位ボーナス</span><b>+${fmt(bonus)}pt</b></div>
+      <div style="display:flex;justify-content:space-between;"><span>順位予想（${G.bet.index+1}位 ×${G.bet.odds.toFixed(1)}）</span><b>${betResult}</b></div>`;
+  }
+  save();
+
+  const ov=document.getElementById('hand-result');
+  const body=document.getElementById('hand-result-body');
+  const again = G.bet.mode==='winner' ? 'goToWatch()' : 'goToBet()';
+  body.innerHTML=`
+    <div class="title-xl" style="font-size:28px;">対局終了</div>
+    <div style="margin:10px 0;">${rows}</div>
+    <div class="card" style="text-align:left;">
+      ${detailRows}
+      <hr style="border-color:rgba(255,255,255,.15);">
+      <div style="display:flex;justify-content:space-between;font-size:18px;"><span>所持ポイント</span><b class="gold">${fmt(wallet)}pt</b></div>
+    </div>
+    <button class="btn" style="margin-top:12px;" onclick="document.getElementById('hand-result').classList.remove('show');show('home');">ホームへ戻る</button>
+    <button class="btn sub" style="margin-top:8px;" onclick="document.getElementById('hand-result').classList.remove('show');${again};">もう一局</button>
+  `;
+  ov.classList.add('show');
+}
+function quitGame(){
+  if(confirm('対局を中断しますか？（賭け金は戻りません）')){ G.over=true; clearTurnTimer(); show('home'); }
+}
+
+/* ============================ 役表データ ============================ */
+const YAKU_DATA=[
+  ['リーチ','1翻','テンパイで宣言。門前(鳴いていない)時のみ。'],
+  ['門前清自摸和（ツモ）','1翻','鳴かずに自分でツモってあがる。'],
+  ['断么九（タンヤオ）','1翻','2〜8の数牌だけで作る。1・9・字牌なし。'],
+  ['平和（ピンフ）','1翻','面子が全部順子＋特定条件。形の美しい基本役。'],
+  ['役牌（ヤクハイ）','1翻','白・發・中や場風・自風の刻子。'],
+  ['一盃口（イーペーコー）','1翻','同じ順子を2組（門前のみ）。'],
+  ['三色同順','2翻','萬筒索で同じ並びの順子を3つ。'],
+  ['一気通貫','2翻','同じ種類で123・456・789。'],
+  ['混一色（ホンイツ）','2〜3翻','1種類の数牌＋字牌だけ。'],
+  ['対々和（トイトイ）','2翻','面子が全部刻子。'],
+  ['七対子（チートイツ）','2翻','異なる7種類の対子（ペア×7）。'],
+  ['清一色（チンイツ）','5〜6翻','1種類の数牌だけで作る大物手。'],
+  ['国士無双','役満','13種の么九牌をそろえる花形役満。'],
+  ['四暗刻（スーアンコウ）','役満','暗刻（自力の刻子）を4つ。'],
+];
+function renderYaku(){
+  const el=document.getElementById('yaku-list'); el.innerHTML='';
+  YAKU_DATA.forEach(([name,han,desc])=>{
+    const d=document.createElement('div'); d.className='yaku-item';
+    d.innerHTML=`<div><div style="font-weight:800;">${name}</div><div class="desc">${desc}</div></div>
+      <div class="han">${han}</div>`;
+    el.appendChild(d);
+  });
+}
+renderYaku();
+
+/* ============================ 初期表示 ============================ */
+if(loggedIn){ show('home'); } else { show('login'); }
+</script>
+</body>
+</html>
